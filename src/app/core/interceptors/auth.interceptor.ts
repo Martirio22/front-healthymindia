@@ -1,0 +1,58 @@
+import { inject } from '@angular/core';
+import {
+  HttpErrorResponse,
+  HttpInterceptorFn
+} from '@angular/common/http';
+import { Router } from '@angular/router';
+import { catchError, throwError } from 'rxjs';
+
+import { environment } from '../../../environments/environment';
+import { TokenStorageService } from '../auth/services/token-storage.service';
+
+export const authInterceptor: HttpInterceptorFn = (
+  request,
+  next
+) => {
+  const tokenStorage = inject(TokenStorageService);
+  const router = inject(Router);
+
+  const accessToken = tokenStorage.getAccessToken();
+
+  const publicUrls = [
+    `${environment.apiUrl}/api/auth/login`,
+    `${environment.apiUrl}/api/auth/register`,
+    `${environment.apiUrl}/api/auth/forgot-password`
+  ];
+
+  const isPublicRequest = publicUrls.some(
+    publicUrl => request.url.startsWith(publicUrl)
+  );
+
+  let requestToSend = request;
+
+  if (
+    !isPublicRequest &&
+    accessToken &&
+    !tokenStorage.isTokenExpired()
+  ) {
+    requestToSend = request.clone({
+      setHeaders: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+  }
+
+  return next(requestToSend).pipe(
+    catchError((error: HttpErrorResponse) => {
+      if (
+        error.status === 401 &&
+        !isPublicRequest
+      ) {
+        tokenStorage.clearSession();
+        void router.navigate(['/login']);
+      }
+
+      return throwError(() => error);
+    })
+  );
+};
