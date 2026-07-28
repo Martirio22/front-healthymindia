@@ -1,16 +1,23 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
 import {
+    ChangeDetectorRef,
     Component,
+    DestroyRef,
     inject,
     OnInit
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import {
     Router,
     RouterModule
 } from '@angular/router';
+import { finalize } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { PasswordModule } from 'primeng/password';
@@ -22,6 +29,7 @@ interface LoginApiError {
     timestamp?: string;
     status?: number;
     message?: string;
+    error?: string;
     errors?: Record<string, string>;
 }
 
@@ -29,9 +37,12 @@ interface LoginApiError {
     selector: 'app-login',
     standalone: true,
     imports: [
+        CommonModule,
         FormsModule,
         RouterModule,
         ButtonModule,
+        IconFieldModule,
+        InputIconModule,
         InputTextModule,
         MessageModule,
         PasswordModule,
@@ -102,26 +113,25 @@ interface LoginApiError {
                                     Nombre de usuario
                                 </label>
 
-                                <div class="relative">
-                                    <i
-                                        class="pi pi-user absolute left-3 top-1/2 -translate-y-1/2 text-muted-color z-10"
-                                    ></i>
+                                <p-iconfield>
+                                    <p-inputicon class="pi pi-user" />
 
                                     <input
                                         pInputText
                                         id="username"
-                                        name="username"
+                                        name="loginUsername"
                                         type="text"
                                         [(ngModel)]="username"
                                         #usernameField="ngModel"
-                                        class="w-full pl-10"
+                                        class="w-full"
                                         placeholder="Ingresa tu nombre de usuario"
                                         autocomplete="username"
                                         maxlength="50"
                                         required
                                         [disabled]="loading"
+                                        (ngModelChange)="clearApiError()"
                                     />
-                                </div>
+                                </p-iconfield>
 
                                 @if (
                                     usernameField.invalid &&
@@ -146,7 +156,7 @@ interface LoginApiError {
 
                                 <p-password
                                     inputId="password"
-                                    name="password"
+                                    name="loginPassword"
                                     [(ngModel)]="password"
                                     #passwordField="ngModel"
                                     placeholder="Ingresa tu contraseña"
@@ -156,6 +166,7 @@ interface LoginApiError {
                                     autocomplete="current-password"
                                     required
                                     [disabled]="loading"
+                                    (ngModelChange)="clearApiError()"
                                 />
 
                                 @if (
@@ -221,8 +232,17 @@ interface LoginApiError {
     `
 })
 export class Login implements OnInit {
-    private readonly authService = inject(AuthService);
-    private readonly router = inject(Router);
+    private readonly authService =
+        inject(AuthService);
+
+    private readonly router =
+        inject(Router);
+
+    private readonly destroyRef =
+        inject(DestroyRef);
+
+    private readonly changeDetectorRef =
+        inject(ChangeDetectorRef);
 
     username = '';
     password = '';
@@ -238,6 +258,10 @@ export class Login implements OnInit {
     }
 
     login(): void {
+        if (this.loading) {
+            return;
+        }
+
         this.submitted = true;
         this.errorMessage = '';
 
@@ -254,40 +278,110 @@ export class Login implements OnInit {
                 username,
                 password: this.password
             })
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => {
+                    window.setTimeout(() => {
+                        this.loading = false;
+
+                        this.changeDetectorRef.detectChanges();
+                    }, 0);
+                })
+            )
             .subscribe({
                 next: () => {
-                    this.loading = false;
-                    void this.router.navigate(['/dashboard']);
+                    void this.router.navigate([
+                        '/dashboard'
+                    ]);
                 },
-                error: (error: HttpErrorResponse) => {
-                    this.loading = false;
 
-                    const response =
-                        error.error as LoginApiError | null;
-
-                    if (error.status === 0) {
-                        this.errorMessage =
-                            'No fue posible conectarse con el servidor.';
-                        return;
-                    }
-
-                    if (error.status === 401) {
-                        this.errorMessage =
-                            'Usuario o contraseña incorrectos.';
-                        return;
-                    }
-
-                    if (error.status === 502) {
-                        this.errorMessage =
-                            response?.message ??
-                            'El servicio de autenticación no está disponible.';
-                        return;
-                    }
-
+                error: (
+                    error: HttpErrorResponse
+                ) => {
                     this.errorMessage =
-                        response?.message ??
-                        'No fue posible iniciar sesión.';
+                        this.getErrorMessage(error);
+
+                    window.setTimeout(() => {
+                        this.changeDetectorRef.detectChanges();
+                    }, 0);
                 }
             });
+    }
+
+    clearApiError(): void {
+        if (this.errorMessage) {
+            this.errorMessage = '';
+        }
+    }
+
+    private getErrorMessage(
+        error: HttpErrorResponse
+    ): string {
+        const response =
+            error.error as LoginApiError | string | null;
+
+        if (error.status === 0) {
+            return 'No fue posible conectarse con el servidor.';
+        }
+
+        if (error.status === 400) {
+            return this.extractBackendMessage(response) ??
+                'Revisa el usuario y la contraseña ingresados.';
+        }
+
+        if (error.status === 401) {
+            return 'Usuario o contraseña incorrectos.';
+        }
+
+        if (error.status === 403) {
+            return 'Tu cuenta no tiene permisos para ingresar.';
+        }
+
+        if (error.status === 404) {
+            return 'No se encontró el servicio de autenticación.';
+        }
+
+        if (error.status === 502) {
+            return this.extractBackendMessage(response) ??
+                'El servicio de autenticación no está disponible.';
+        }
+
+        if (error.status === 503) {
+            return 'El servicio se encuentra temporalmente fuera de servicio.';
+        }
+
+        if (error.status >= 500) {
+            return this.extractBackendMessage(response) ??
+                'Ocurrió un problema en el servidor. Intenta nuevamente.';
+        }
+
+        return this.extractBackendMessage(response) ??
+            'No fue posible iniciar sesión.';
+    }
+
+    private extractBackendMessage(
+        response: LoginApiError | string | null
+    ): string | null {
+        if (typeof response === 'string') {
+            return response.trim() || null;
+        }
+
+        if (
+            response &&
+            typeof response.message === 'string' &&
+            response.message.trim()
+        ) {
+            return response.message.trim();
+        }
+
+        if (
+            response &&
+            typeof response.error === 'string' &&
+            response.error.trim()
+        ) {
+            return response.error.trim();
+        }
+
+        return null;
     }
 }

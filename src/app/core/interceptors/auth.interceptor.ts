@@ -37,20 +37,17 @@ export const authInterceptor: HttpInterceptorFn = (
             request.url.startsWith(publicUrl)
         );
 
-    let requestToSend = request;
-
-    if (
+    const requestToSend =
         !isPublicRequest &&
         accessToken &&
         !tokenStorage.isTokenExpired()
-    ) {
-        requestToSend = request.clone({
-            setHeaders: {
-                Authorization:
-                    `Bearer ${accessToken}`
-            }
-        });
-    }
+            ? request.clone({
+                  setHeaders: {
+                      Authorization:
+                          `Bearer ${accessToken}`
+                  }
+              })
+            : request;
 
     return next(requestToSend).pipe(
         catchError(
