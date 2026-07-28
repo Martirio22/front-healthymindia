@@ -98,12 +98,16 @@ import { CommonModule } from '@angular/common';
 import {
     Component,
     inject,
+    OnDestroy,
     ViewChild
 } from '@angular/core';
 import {
+    NavigationStart,
     Router,
     RouterModule
 } from '@angular/router';
+
+import { filter, Subscription } from 'rxjs';
 
 import { MenuItem } from 'primeng/api';
 import {
@@ -159,7 +163,10 @@ import { AppConfigurator } from './app.configurator';
 
                         <small
                             class="text-muted-color font-normal hidden sm:block"
-                            style="font-size: 0.68rem; margin-top: 0.25rem"
+                            style="
+                                font-size: 0.68rem;
+                                margin-top: 0.25rem;
+                            "
                         >
                             Hábitos inteligentes
                         </small>
@@ -179,8 +186,10 @@ import { AppConfigurator } from './app.configurator';
                         <i
                             class="pi"
                             [ngClass]="{
-                                'pi-moon': !layoutService.isDarkTheme(),
-                                'pi-sun': layoutService.isDarkTheme()
+                                'pi-moon':
+                                    !layoutService.isDarkTheme(),
+                                'pi-sun':
+                                    layoutService.isDarkTheme()
                             }"
                         ></i>
                     </button>
@@ -229,7 +238,10 @@ import { AppConfigurator } from './app.configurator';
                             title="Registro diario"
                         >
                             <i class="pi pi-check-square"></i>
-                            <span>Registro diario</span>
+
+                            <span>
+                                Registro diario
+                            </span>
                         </button>
 
                         <button
@@ -240,7 +252,10 @@ import { AppConfigurator } from './app.configurator';
                             title="Recomendaciones con IA"
                         >
                             <i class="pi pi-sparkles"></i>
-                            <span>Recomendaciones</span>
+
+                            <span>
+                                Recomendaciones
+                            </span>
                         </button>
 
                         <button
@@ -253,7 +268,10 @@ import { AppConfigurator } from './app.configurator';
                             title="Mi cuenta"
                         >
                             <i class="pi pi-user"></i>
-                            <span>Mi cuenta</span>
+
+                            <span>
+                                Mi cuenta
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -265,7 +283,6 @@ import { AppConfigurator } from './app.configurator';
             id="user-menu"
             [model]="userMenuItems"
             [popup]="true"
-            appendTo="body"
         >
             <ng-template #start>
                 <div
@@ -274,7 +291,10 @@ import { AppConfigurator } from './app.configurator';
                 >
                     <div
                         class="flex items-center justify-center rounded-full bg-primary text-primary-contrast font-semibold shrink-0"
-                        style="width: 2.75rem; height: 2.75rem"
+                        style="
+                            width: 2.75rem;
+                            height: 2.75rem;
+                        "
                     >
                         {{ userInitials }}
                     </div>
@@ -286,7 +306,9 @@ import { AppConfigurator } from './app.configurator';
                             {{ displayName }}
                         </div>
 
-                        <div class="text-sm text-muted-color truncate">
+                        <div
+                            class="text-sm text-muted-color truncate"
+                        >
                             {{ username }}
                         </div>
                     </div>
@@ -297,17 +319,21 @@ import { AppConfigurator } from './app.configurator';
 })
 export class AppTopbar {
     @ViewChild('userMenu')
-    userMenu!: Menu;
+    userMenu?: Menu;
 
-    readonly layoutService = inject(LayoutService);
+    readonly layoutService =
+        inject(LayoutService);
 
-    private readonly authService = inject(AuthService);
+    private readonly authService =
+        inject(AuthService);
 
-    private readonly tokenStorage = inject(
-        TokenStorageService
-    );
+    private readonly tokenStorage =
+        inject(TokenStorageService);
 
-    private readonly router = inject(Router);
+    private readonly router =
+        inject(Router);
+
+    private loggingOut = false;
 
     readonly userMenuItems: MenuItem[] = [
         {
@@ -317,45 +343,35 @@ export class AppTopbar {
                     label: 'Mi perfil',
                     icon: 'pi pi-user',
                     command: () => {
-                        void this.router.navigate([
-                            '/profile'
-                        ]);
+                        this.navigateTo('/profile');
                     }
                 },
                 {
                     label: 'Mis hábitos',
                     icon: 'pi pi-list',
                     command: () => {
-                        void this.router.navigate([
-                            '/habits'
-                        ]);
+                        this.navigateTo('/habits');
                     }
                 },
                 {
                     label: 'Registro diario',
                     icon: 'pi pi-check-square',
                     command: () => {
-                        void this.router.navigate([
-                            '/daily-record'
-                        ]);
+                        this.navigateTo('/daily-record');
                     }
                 },
                 {
                     label: 'Estadísticas',
                     icon: 'pi pi-chart-bar',
                     command: () => {
-                        void this.router.navigate([
-                            '/statistics'
-                        ]);
+                        this.navigateTo('/statistics');
                     }
                 },
                 {
                     label: 'Recomendaciones IA',
                     icon: 'pi pi-sparkles',
                     command: () => {
-                        void this.router.navigate([
-                            '/recommendations'
-                        ]);
+                        this.navigateTo('/recommendations');
                     }
                 }
             ]
@@ -388,7 +404,8 @@ export class AppTopbar {
         const payload =
             this.tokenStorage.getTokenPayload();
 
-        const fullName = payload?.['name'];
+        const fullName =
+            payload?.['name'];
 
         if (
             typeof fullName === 'string' &&
@@ -446,10 +463,11 @@ export class AppTopbar {
             ).toUpperCase();
         }
 
-        const nameParts = this.displayName
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
+        const nameParts =
+            this.displayName
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
 
         if (nameParts.length >= 2) {
             return (
@@ -476,18 +494,41 @@ export class AppTopbar {
         );
     }
 
+    private navigateTo(route: string): void {
+        this.userMenu?.hide();
+
+        window.setTimeout(() => {
+            void this.router.navigate([route]);
+        }, 150);
+    }
+
     logout(): void {
-        this.authService.logout().subscribe({
-            next: () => {
-                void this.router.navigate([
-                    '/auth/login'
-                ]);
-            },
-            error: () => {
-                void this.router.navigate([
-                    '/auth/login'
-                ]);
-            }
-        });
+        if (this.loggingOut) {
+            return;
+        }
+
+        this.loggingOut = true;
+        this.userMenu?.hide();
+
+        window.setTimeout(() => {
+            this.authService.logout().subscribe({
+                next: () => {
+                    void this.router.navigate(
+                        ['/auth/login'],
+                        {
+                            replaceUrl: true
+                        }
+                    );
+                },
+                error: () => {
+                    void this.router.navigate(
+                        ['/auth/login'],
+                        {
+                            replaceUrl: true
+                        }
+                    );
+                }
+            });
+        }, 150);
     }
 }
