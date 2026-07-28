@@ -1,13 +1,28 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import {
+    ChangeDetectorRef,
+    Component,
+    DestroyRef,
+    inject
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import {
+    Router,
+    RouterModule
+} from '@angular/router';
+
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
 import { SelectModule } from 'primeng/select';
 import { ToastModule } from 'primeng/toast';
+
+import { AuthRole } from '@/app/core/auth/models/auth-role.enum';
+import { CreateUserByAdminRequest } from '@/app/core/auth/models/create-user-by-admin-request.model';
+import { AuthService } from '@/app/core/auth/services/auth.service';
 
 @Component({
     selector: 'app-user-form',
@@ -37,7 +52,9 @@ import { ToastModule } from 'primeng/toast';
                 />
 
                 <div>
-                    <h1 class="text-3xl font-semibold text-surface-900 dark:text-surface-0 m-0">
+                    <h1
+                        class="text-3xl font-semibold text-surface-900 dark:text-surface-0 m-0"
+                    >
                         Crear usuario
                     </h1>
 
@@ -55,7 +72,9 @@ import { ToastModule } from 'primeng/toast';
                                 class="flex items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-400/10"
                                 style="width: 3.5rem; height: 3.5rem"
                             >
-                                <i class="pi pi-user-plus text-primary text-xl"></i>
+                                <i
+                                    class="pi pi-user-plus text-primary text-xl"
+                                ></i>
                             </div>
 
                             <div>
@@ -83,11 +102,14 @@ import { ToastModule } from 'primeng/toast';
                                     id="firstName"
                                     [(ngModel)]="firstName"
                                     class="w-full"
-                                    placeholder="Juan"
                                     maxlength="100"
+                                    [disabled]="saving"
                                 />
 
-                                @if (showErrors && !firstName.trim()) {
+                                @if (
+                                    submitted &&
+                                    !firstName.trim()
+                                ) {
                                     <small class="block text-red-500 mt-2">
                                         El nombre es obligatorio.
                                     </small>
@@ -107,11 +129,14 @@ import { ToastModule } from 'primeng/toast';
                                     id="lastName"
                                     [(ngModel)]="lastName"
                                     class="w-full"
-                                    placeholder="Pérez"
                                     maxlength="100"
+                                    [disabled]="saving"
                                 />
 
-                                @if (showErrors && !lastName.trim()) {
+                                @if (
+                                    submitted &&
+                                    !lastName.trim()
+                                ) {
                                     <small class="block text-red-500 mt-2">
                                         El apellido es obligatorio.
                                     </small>
@@ -131,16 +156,17 @@ import { ToastModule } from 'primeng/toast';
                                     id="username"
                                     [(ngModel)]="username"
                                     class="w-full"
-                                    placeholder="juan.perez"
                                     maxlength="50"
+                                    [disabled]="saving"
                                 />
 
                                 @if (
-                                    showErrors &&
+                                    submitted &&
                                     !isValidUsername(username)
                                 ) {
                                     <small class="block text-red-500 mt-2">
-                                        Debe tener entre 4 y 50 caracteres y usar solo letras, números, punto, guion o guion bajo.
+                                        Usa entre 4 y 50 caracteres: letras,
+                                        números, punto, guion o guion bajo.
                                     </small>
                                 }
                             </div>
@@ -159,16 +185,16 @@ import { ToastModule } from 'primeng/toast';
                                     type="email"
                                     [(ngModel)]="email"
                                     class="w-full"
-                                    placeholder="juan@email.com"
                                     maxlength="150"
+                                    [disabled]="saving"
                                 />
 
                                 @if (
-                                    showErrors &&
+                                    submitted &&
                                     !isValidEmail(email)
                                 ) {
                                     <small class="block text-red-500 mt-2">
-                                        Ingresa un correo electrónico válido.
+                                        Ingresa un correo válido.
                                     </small>
                                 }
                             </div>
@@ -187,15 +213,15 @@ import { ToastModule } from 'primeng/toast';
                                     [toggleMask]="true"
                                     [feedback]="true"
                                     [fluid]="true"
-                                    placeholder="Mínimo 8 caracteres"
+                                    [disabled]="saving"
                                 />
 
                                 @if (
-                                    showErrors &&
+                                    submitted &&
                                     password.length < 8
                                 ) {
                                     <small class="block text-red-500 mt-2">
-                                        La contraseña debe tener al menos 8 caracteres.
+                                        Debe tener al menos 8 caracteres.
                                     </small>
                                 }
                             </div>
@@ -214,11 +240,11 @@ import { ToastModule } from 'primeng/toast';
                                     [toggleMask]="true"
                                     [feedback]="false"
                                     [fluid]="true"
-                                    placeholder="Repite la contraseña"
+                                    [disabled]="saving"
                                 />
 
                                 @if (
-                                    showErrors &&
+                                    submitted &&
                                     password !== confirmPassword
                                 ) {
                                     <small class="block text-red-500 mt-2">
@@ -241,30 +267,28 @@ import { ToastModule } from 'primeng/toast';
                                     [options]="roleOptions"
                                     optionLabel="label"
                                     optionValue="value"
-                                    placeholder="Selecciona un rol"
                                     styleClass="w-full"
+                                    [disabled]="saving"
                                 />
-
-                                @if (showErrors && !role) {
-                                    <small class="block text-red-500 mt-2">
-                                        Debes seleccionar un rol.
-                                    </small>
-                                }
                             </div>
                         </div>
 
-                        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-8">
+                        <div
+                            class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-8"
+                        >
                             <p-button
                                 label="Cancelar"
                                 icon="pi pi-times"
                                 severity="secondary"
                                 [outlined]="true"
                                 routerLink="/admin/users"
+                                [disabled]="saving"
                             />
 
                             <p-button
                                 label="Crear usuario"
                                 icon="pi pi-user-plus"
+                                [loading]="saving"
                                 (onClick)="saveUser()"
                             />
                         </div>
@@ -278,7 +302,9 @@ import { ToastModule } from 'primeng/toast';
                                 class="flex items-center justify-center rounded-xl bg-orange-100 dark:bg-orange-400/10"
                                 style="width: 3.5rem; height: 3.5rem"
                             >
-                                <i class="pi pi-shield text-orange-500 text-xl"></i>
+                                <i
+                                    class="pi pi-shield text-orange-500 text-xl"
+                                ></i>
                             </div>
 
                             <div>
@@ -292,7 +318,7 @@ import { ToastModule } from 'primeng/toast';
                             </div>
                         </div>
 
-                        @if (role === 'ADMIN') {
+                        @if (role === adminRole) {
                             <div
                                 class="p-5 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20"
                             >
@@ -303,8 +329,8 @@ import { ToastModule } from 'primeng/toast';
                                 <ul class="text-muted-color leading-7 pl-5 m-0">
                                     <li>Consultar todos los usuarios.</li>
                                     <li>Activar o desactivar cuentas.</li>
-                                    <li>Crear usuarios normales o administrativos.</li>
-                                    <li>Acceder al módulo administrativo.</li>
+                                    <li>Crear usuarios administrativos.</li>
+                                    <li>Acceder al módulo protegido.</li>
                                 </ul>
                             </div>
                         } @else {
@@ -316,21 +342,13 @@ import { ToastModule } from 'primeng/toast';
                                 </h3>
 
                                 <ul class="text-muted-color leading-7 pl-5 m-0">
-                                    <li>Administrar sus propios hábitos.</li>
+                                    <li>Administrar sus hábitos.</li>
                                     <li>Registrar progreso diario.</li>
                                     <li>Consultar estadísticas.</li>
                                     <li>Generar recomendaciones IA.</li>
                                 </ul>
                             </div>
                         }
-
-                        <div class="flex items-start gap-3 mt-6">
-                            <i class="pi pi-info-circle text-primary mt-1"></i>
-
-                            <p class="text-muted-color leading-6 m-0">
-                                La creación de administradores debe estar disponible únicamente dentro de esta pantalla protegida.
-                            </p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -338,66 +356,173 @@ import { ToastModule } from 'primeng/toast';
     `
 })
 export class UserForm {
+    private readonly authService =
+        inject(AuthService);
+
+    private readonly router =
+        inject(Router);
+
+    private readonly messageService =
+        inject(MessageService);
+
+    private readonly destroyRef =
+        inject(DestroyRef);
+
+    private readonly changeDetectorRef =
+        inject(ChangeDetectorRef);
+
+    readonly userRole = 'USER' as AuthRole;
+    readonly adminRole = 'ADMIN' as AuthRole;
+
+    readonly roleOptions = [
+        {
+            label: 'Usuario',
+            value: this.userRole
+        },
+        {
+            label: 'Administrador',
+            value: this.adminRole
+        }
+    ];
+
     firstName = '';
     lastName = '';
     username = '';
     email = '';
     password = '';
     confirmPassword = '';
-    role: 'USER' | 'ADMIN' = 'USER';
-    showErrors = false;
 
-    roleOptions = [
-        {
-            label: 'Usuario',
-            value: 'USER'
-        },
-        {
-            label: 'Administrador',
-            value: 'ADMIN'
-        }
-    ];
+    role: AuthRole = this.userRole;
 
-    constructor(
-        private readonly router: Router,
-        private readonly messageService: MessageService
-    ) {}
+    submitted = false;
+
+    saving = false;
 
     saveUser(): void {
-        this.showErrors = true;
-
-        if (
-            !this.firstName.trim() ||
-            !this.lastName.trim() ||
-            !this.isValidUsername(this.username) ||
-            !this.isValidEmail(this.email) ||
-            this.password.length < 8 ||
-            this.password !== this.confirmPassword ||
-            !this.role
-        ) {
+        if (this.saving) {
             return;
         }
 
-        this.messageService.add({
-            severity: 'success',
-            summary: 'Usuario creado',
-            detail: `La cuenta ${this.username} fue creada correctamente.`
-        });
+        this.submitted = true;
 
-        window.setTimeout(() => {
-            void this.router.navigate(['/admin/users']);
-        }, 900);
+        if (!this.isValidForm()) {
+            return;
+        }
+
+        this.saving = true;
+
+        const request: CreateUserByAdminRequest = {
+            username: this.username.trim(),
+            email: this.email.trim().toLowerCase(),
+            firstName: this.firstName.trim(),
+            lastName: this.lastName.trim(),
+            password: this.password,
+            role: this.role
+        };
+
+        this.authService
+            .createUserByAdmin(request)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe({
+                next: () => {
+                    window.setTimeout(() => {
+                        this.saving = false;
+
+                        this.changeDetectorRef
+                            .detectChanges();
+
+                        this.messageService.add({
+                            severity: 'success',
+                            summary: 'Usuario creado',
+                            detail:
+                                `La cuenta ${request.username} fue creada correctamente.`
+                        });
+
+                        window.setTimeout(() => {
+                            void this.router.navigate([
+                                '/admin/users'
+                            ]);
+                        }, 700);
+                    }, 0);
+                },
+                error: (
+                    error: HttpErrorResponse
+                ) => {
+                    window.setTimeout(() => {
+                        this.saving = false;
+
+                        this.changeDetectorRef
+                            .detectChanges();
+
+                        this.messageService.add({
+                            severity: 'error',
+                            summary:
+                                'No fue posible crear',
+                            detail:
+                                this.getErrorMessage(error)
+                        });
+                    }, 0);
+                }
+            });
     }
 
-    isValidUsername(username: string): boolean {
+    isValidUsername(value: string): boolean {
         return /^[a-zA-Z0-9._-]{4,50}$/.test(
-            username.trim()
+            value.trim()
         );
     }
 
-    isValidEmail(email: string): boolean {
+    isValidEmail(value: string): boolean {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-            email.trim()
+            value.trim()
         );
+    }
+
+    private isValidForm(): boolean {
+        return Boolean(
+            this.firstName.trim() &&
+            this.lastName.trim() &&
+            this.isValidUsername(this.username) &&
+            this.isValidEmail(this.email) &&
+            this.password.length >= 8 &&
+            this.password === this.confirmPassword &&
+            this.role
+        );
+    }
+
+    private getErrorMessage(
+        error: HttpErrorResponse
+    ): string {
+        if (error.status === 0) {
+            return 'No fue posible conectarse con el servidor.';
+        }
+
+        if (error.status === 400) {
+            return (
+                error.error?.message ??
+                'Revisa la información ingresada.'
+            );
+        }
+
+        if (error.status === 401) {
+            return 'La sesión expiró.';
+        }
+
+        if (error.status === 403) {
+            return 'No tienes permisos para crear usuarios.';
+        }
+
+        if (error.status === 409) {
+            return (
+                error.error?.message ??
+                'El usuario o correo ya se encuentra registrado.'
+            );
+        }
+
+        return typeof error.error?.message === 'string'
+            ? error.error.message
+            : 'Ocurrió un error inesperado.';
     }
 }
