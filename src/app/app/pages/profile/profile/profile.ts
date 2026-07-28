@@ -1,3 +1,4 @@
+import { AuthService } from '@/app/core/auth/services/auth.service';
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -463,8 +464,9 @@ export class Profile {
 
     constructor(
         private readonly messageService: MessageService,
-        private readonly router: Router
-    ) {}
+        private readonly router: Router,
+        private readonly authService: AuthService
+    ) { }
 
     get initials(): string {
         const firstInitial =
@@ -533,6 +535,17 @@ export class Profile {
     }
 
     logout(): void {
-        void this.router.navigate(['/auth/login']);
+        this.authService.logout().subscribe({
+            next: () => {
+                void this.router.navigate([
+                    '/auth/login'
+                ]);
+            },
+            error: () => {
+                void this.router.navigate([
+                    '/auth/login'
+                ]);
+            }
+        });
     }
 }

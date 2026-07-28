@@ -1,58 +1,73 @@
-import { inject } from '@angular/core';
 import {
-  HttpErrorResponse,
-  HttpInterceptorFn
+    HttpErrorResponse,
+    HttpInterceptorFn
 } from '@angular/common/http';
+import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import {
+    catchError,
+    throwError
+} from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { TokenStorageService } from '../auth/services/token-storage.service';
 
 export const authInterceptor: HttpInterceptorFn = (
-  request,
-  next
+    request,
+    next
 ) => {
-  const tokenStorage = inject(TokenStorageService);
-  const router = inject(Router);
+    const tokenStorage =
+        inject(TokenStorageService);
 
-  const accessToken = tokenStorage.getAccessToken();
+    const router =
+        inject(Router);
 
-  const publicUrls = [
-    `${environment.apiUrl}/api/auth/login`,
-    `${environment.apiUrl}/api/auth/register`,
-    `${environment.apiUrl}/api/auth/forgot-password`
-  ];
+    const accessToken =
+        tokenStorage.getAccessToken();
 
-  const isPublicRequest = publicUrls.some(
-    publicUrl => request.url.startsWith(publicUrl)
-  );
+    const publicUrls = [
+        `${environment.apiUrl}/api/auth/login`,
+        `${environment.apiUrl}/api/auth/register`,
+        `${environment.apiUrl}/api/auth/forgot-password`,
+        `${environment.apiUrl}/api/auth/logout`
+    ];
 
-  let requestToSend = request;
+    const isPublicRequest =
+        publicUrls.some(publicUrl =>
+            request.url.startsWith(publicUrl)
+        );
 
-  if (
-    !isPublicRequest &&
-    accessToken &&
-    !tokenStorage.isTokenExpired()
-  ) {
-    requestToSend = request.clone({
-      setHeaders: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
-  }
+    let requestToSend = request;
 
-  return next(requestToSend).pipe(
-    catchError((error: HttpErrorResponse) => {
-      if (
-        error.status === 401 &&
-        !isPublicRequest
-      ) {
-        tokenStorage.clearSession();
-        void router.navigate(['/login']);
-      }
+    if (
+        !isPublicRequest &&
+        accessToken &&
+        !tokenStorage.isTokenExpired()
+    ) {
+        requestToSend = request.clone({
+            setHeaders: {
+                Authorization:
+                    `Bearer ${accessToken}`
+            }
+        });
+    }
 
-      return throwError(() => error);
-    })
-  );
+    return next(requestToSend).pipe(
+        catchError(
+            (error: HttpErrorResponse) => {
+                if (
+                    error.status === 401 &&
+                    !isPublicRequest
+                ) {
+                    tokenStorage.clearSession();
+
+                    void router.navigate([
+                        '/auth/login'
+                    ]);
+                }
+
+                return throwError(() => error);
+            }
+        )
+    );
 };
