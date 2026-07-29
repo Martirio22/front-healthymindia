@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import {
+    ActivatedRoute,
     Router,
     RouterModule
 } from '@angular/router';
@@ -244,6 +245,9 @@ export class Login implements OnInit {
     private readonly changeDetectorRef =
         inject(ChangeDetectorRef);
 
+    private readonly route =
+        inject(ActivatedRoute);
+
     username = '';
     password = '';
 
@@ -252,8 +256,25 @@ export class Login implements OnInit {
     errorMessage = '';
 
     ngOnInit(): void {
-        if (this.authService.isAuthenticated()) {
-            void this.router.navigate(['/dashboard']);
+        if (
+            this.authService.isAuthenticated()
+        ) {
+            void this.router.navigate([
+                '/dashboard'
+            ]);
+
+            return;
+        }
+
+        const reason =
+            this.route.snapshot.queryParamMap
+                .get('reason');
+
+        if (
+            reason === 'session-expired'
+        ) {
+            this.errorMessage =
+                'Tu sesión expiró por inactividad. Inicia sesión nuevamente.';
         }
     }
 

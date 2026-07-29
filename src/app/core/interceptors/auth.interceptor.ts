@@ -29,6 +29,7 @@ export const authInterceptor: HttpInterceptorFn = (
         `${environment.apiUrl}/api/auth/login`,
         `${environment.apiUrl}/api/auth/register`,
         `${environment.apiUrl}/api/auth/forgot-password`,
+        `${environment.apiUrl}/api/auth/refresh-token`,
         `${environment.apiUrl}/api/auth/logout`
     ];
 
@@ -39,14 +40,14 @@ export const authInterceptor: HttpInterceptorFn = (
 
     const requestToSend =
         !isPublicRequest &&
-        accessToken &&
-        !tokenStorage.isTokenExpired()
+            accessToken &&
+            !tokenStorage.isTokenExpired()
             ? request.clone({
-                  setHeaders: {
-                      Authorization:
-                          `Bearer ${accessToken}`
-                  }
-              })
+                setHeaders: {
+                    Authorization:
+                        `Bearer ${accessToken}`
+                }
+            })
             : request;
 
     return next(requestToSend).pipe(

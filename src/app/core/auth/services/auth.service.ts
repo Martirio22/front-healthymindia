@@ -4,7 +4,8 @@ import {
     finalize,
     Observable,
     of,
-    tap
+    tap,
+    throwError
 } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
@@ -17,6 +18,7 @@ import { RegisterRequest } from '../models/register-request.model';
 import { TokenResponse } from '../models/token-response.model';
 
 import { TokenStorageService } from './token-storage.service';
+import { RefreshTokenRequest } from '../models/refresh-token-request.model';
 
 @Injectable({
     providedIn: 'root'
@@ -79,6 +81,7 @@ export class AuthService {
 
         if (!refreshToken) {
             this.tokenStorage.clearSession();
+
             return of(void 0);
         }
 
@@ -103,5 +106,39 @@ export class AuthService {
             this.tokenStorage.hasAccessToken() &&
             !this.tokenStorage.isTokenExpired()
         );
+    }
+
+    refreshToken(): Observable<TokenResponse> {
+        const refreshToken =
+            this.tokenStorage.getRefreshToken();
+
+        if (
+            !refreshToken ||
+            this.tokenStorage.isRefreshTokenExpired()
+        ) {
+            return throwError(
+                () =>
+                    new Error(
+                        'El refresh token no está disponible o expiró.'
+                    )
+            );
+        }
+
+        const request: RefreshTokenRequest = {
+            refreshToken
+        };
+
+        return this.http
+            .post<TokenResponse>(
+                `${this.authUrl}/refresh-token`,
+                request
+            )
+            .pipe(
+                tap(response => {
+                    this.tokenStorage.saveSession(
+                        response
+                    );
+                })
+            );
     }
 }

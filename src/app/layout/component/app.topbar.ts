@@ -98,16 +98,12 @@ import { CommonModule } from '@angular/common';
 import {
     Component,
     inject,
-    OnDestroy,
     ViewChild
 } from '@angular/core';
 import {
-    NavigationStart,
     Router,
     RouterModule
 } from '@angular/router';
-
-import { filter, Subscription } from 'rxjs';
 
 import { MenuItem } from 'primeng/api';
 import {
@@ -117,6 +113,7 @@ import {
 import { StyleClassModule } from 'primeng/styleclass';
 
 import { AuthService } from '@/app/core/auth/services/auth.service';
+import { SessionManagerService } from '@/app/core/auth/services/session-manager.service';
 import { TokenStorageService } from '@/app/core/auth/services/token-storage.service';
 import { LayoutService } from '@/app/layout/service/layout.service';
 
@@ -261,7 +258,7 @@ import { AppConfigurator } from './app.configurator';
                         <button
                             type="button"
                             class="layout-topbar-action"
-                            (click)="userMenu.toggle($event)"
+                            (click)="openUserMenu($event)"
                             aria-haspopup="true"
                             aria-controls="user-menu"
                             aria-label="Abrir menú de usuario"
@@ -314,6 +311,43 @@ import { AppConfigurator } from './app.configurator';
                     </div>
                 </div>
             </ng-template>
+
+            <ng-template #end>
+                <div
+                    class="border-t border-surface-200 dark:border-surface-700 p-2"
+                >
+                    <button
+                        type="button"
+                        class="w-full flex items-center gap-3 px-3 py-3 border-none rounded-lg bg-transparent text-left transition-colors"
+                        [ngClass]="{
+                            'text-red-500 cursor-pointer hover:bg-red-50 dark:hover:bg-red-950/30':
+                                !loggingOut,
+                            'text-red-400 opacity-60 cursor-not-allowed':
+                                loggingOut
+                        }"
+                        [disabled]="loggingOut"
+                        (pointerdown)="stopMenuEvent($event)"
+                        (click)="onLogoutClick($event)"
+                    >
+                        <i
+                            class="pi"
+                            [ngClass]="
+                                loggingOut
+                                    ? 'pi-spin pi-spinner'
+                                    : 'pi-sign-out'
+                            "
+                        ></i>
+
+                        <span class="font-medium">
+                            {{
+                                loggingOut
+                                    ? 'Cerrando sesión...'
+                                    : 'Cerrar sesión'
+                            }}
+                        </span>
+                    </button>
+                </div>
+            </ng-template>
         </p-menu>
     `
 })
@@ -327,13 +361,16 @@ export class AppTopbar {
     private readonly authService =
         inject(AuthService);
 
+    private readonly sessionManager =
+        inject(SessionManagerService);
+
     private readonly tokenStorage =
         inject(TokenStorageService);
 
     private readonly router =
         inject(Router);
 
-    private loggingOut = false;
+    loggingOut = false;
 
     readonly userMenuItems: MenuItem[] = [
         {
@@ -357,34 +394,30 @@ export class AppTopbar {
                     label: 'Registro diario',
                     icon: 'pi pi-check-square',
                     command: () => {
-                        this.navigateTo('/daily-record');
+                        this.navigateTo(
+                            '/daily-record'
+                        );
                     }
                 },
                 {
                     label: 'Estadísticas',
                     icon: 'pi pi-chart-bar',
                     command: () => {
-                        this.navigateTo('/statistics');
+                        this.navigateTo(
+                            '/statistics'
+                        );
                     }
                 },
                 {
                     label: 'Recomendaciones IA',
                     icon: 'pi pi-sparkles',
                     command: () => {
-                        this.navigateTo('/recommendations');
+                        this.navigateTo(
+                            '/recommendations'
+                        );
                     }
                 }
             ]
-        },
-        {
-            separator: true
-        },
-        {
-            label: 'Cerrar sesión',
-            icon: 'pi pi-sign-out',
-            command: () => {
-                this.logout();
-            }
         }
     ];
 
@@ -485,6 +518,14 @@ export class AppTopbar {
         return 'US';
     }
 
+    openUserMenu(event: Event): void {
+        if (this.loggingOut) {
+            return;
+        }
+
+        this.userMenu?.toggle(event);
+    }
+
     toggleDarkMode(): void {
         this.layoutService.layoutConfig.update(
             state => ({
@@ -494,12 +535,15 @@ export class AppTopbar {
         );
     }
 
-    private navigateTo(route: string): void {
-        this.userMenu?.hide();
+    stopMenuEvent(event: PointerEvent): void {
+        event.stopPropagation();
+    }
 
-        window.setTimeout(() => {
-            void this.router.navigate([route]);
-        }, 150);
+    onLogoutClick(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this.logout();
     }
 
     logout(): void {
@@ -508,27 +552,43 @@ export class AppTopbar {
         }
 
         this.loggingOut = true;
+
+        this.sessionManager.stop();
+
+        this.authService
+            .logout()
+            .subscribe({
+                next: () => {
+                    this.finishLogout();
+                },
+                error: () => {
+                    this.finishLogout();
+                }
+            });
+    }
+
+    private navigateTo(route: string): void {
         this.userMenu?.hide();
 
         window.setTimeout(() => {
-            this.authService.logout().subscribe({
-                next: () => {
-                    void this.router.navigate(
-                        ['/auth/login'],
-                        {
-                            replaceUrl: true
-                        }
-                    );
-                },
-                error: () => {
-                    void this.router.navigate(
-                        ['/auth/login'],
-                        {
-                            replaceUrl: true
-                        }
-                    );
-                }
-            });
+            void this.router.navigate([
+                route
+            ]);
         }, 150);
+    }
+
+    private finishLogout(): void {
+        this.userMenu?.hide();
+
+        this.tokenStorage.clearSession();
+
+        window.setTimeout(() => {
+            void this.router.navigate(
+                ['/auth/login'],
+                {
+                    replaceUrl: true
+                }
+            );
+        }, 100);
     }
 }
