@@ -21,8 +21,8 @@ import { FooterWidget } from './components/footerwidget';
                 <topbar-widget class="py-6 px-6 mx-0 md:mx-12 lg:mx-20 lg:px-20 flex items-center justify-between relative lg:static" />
                 <hero-widget />
                 <features-widget />
-                <highlights-widget />
-                <pricing-widget />
+                <!-- <highlights-widget /> -->
+                <!-- <pricing-widget /> -->
                 <footer-widget />
             </div>
         </div>

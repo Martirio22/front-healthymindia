@@ -16,6 +16,7 @@ import {
 
 import {
     catchError,
+    finalize,
     forkJoin,
     of
 } from 'rxjs';
@@ -40,6 +41,7 @@ import { UserRequest } from '@/app/core/users/models/user-request.model';
 import { UserResponse } from '@/app/core/users/models/user-response.model';
 import { UserStatus } from '@/app/core/users/models/user-status.enum';
 import { UserService } from '@/app/core/users/services/user.service';
+import { SessionManagerService } from '@/app/core/auth/services/session-manager.service';
 
 interface EditableProfile {
     firstName: string;
@@ -671,6 +673,9 @@ export class Profile implements OnInit {
     private readonly authService =
         inject(AuthService);
 
+    private readonly sessionManager =
+        inject(SessionManagerService);
+
     private readonly messageService =
         inject(MessageService);
 
@@ -683,9 +688,15 @@ export class Profile implements OnInit {
     private readonly changeDetectorRef =
         inject(ChangeDetectorRef);
 
-    readonly formSkeletons = [1, 2, 3, 4];
+    readonly formSkeletons = [
+        1,
+        2,
+        3,
+        4
+    ];
 
-    profile: UserResponse | null = null;
+    profile: UserResponse | null =
+        null;
 
     editableProfile: EditableProfile = {
         firstName: '',
@@ -746,11 +757,15 @@ export class Profile implements OnInit {
     }
 
     get mainRole(): string {
-        if (this.tokenStorage.isAdmin()) {
+        if (
+            this.tokenStorage.isAdmin()
+        ) {
             return 'ADMIN';
         }
 
-        if (this.tokenStorage.isUser()) {
+        if (
+            this.tokenStorage.isUser()
+        ) {
             return 'USER';
         }
 
@@ -786,9 +801,14 @@ export class Profile implements OnInit {
         }
 
         this.editableProfile = {
-            firstName: this.profile.firstName,
-            lastName: this.profile.lastName,
-            email: this.profile.email
+            firstName:
+                this.profile.firstName,
+
+            lastName:
+                this.profile.lastName,
+
+            email:
+                this.profile.email
         };
 
         this.submitted = false;
@@ -797,6 +817,7 @@ export class Profile implements OnInit {
 
     cancelEditing(): void {
         this.resetEditableProfile();
+
         this.submitted = false;
         this.editing = false;
     }
@@ -819,13 +840,18 @@ export class Profile implements OnInit {
 
         const request: UserRequest = {
             firstName:
-                this.editableProfile.firstName.trim(),
+                this.editableProfile
+                    .firstName
+                    .trim(),
 
             lastName:
-                this.editableProfile.lastName.trim(),
+                this.editableProfile
+                    .lastName
+                    .trim(),
 
             email:
-                this.editableProfile.email
+                this.editableProfile
+                    .email
                     .trim()
                     .toLowerCase()
         };
@@ -833,36 +859,26 @@ export class Profile implements OnInit {
         this.userService
             .updateMyProfile(request)
             .pipe(
-                takeUntilDestroyed(this.destroyRef)
+                takeUntilDestroyed(
+                    this.destroyRef
+                )
             )
             .subscribe({
                 next: response => {
-                    this.profile = response;
+                    this.profile =
+                        response;
 
                     this.resetEditableProfile();
 
-                    window.setTimeout(() => {
-                        this.savingProfile = false;
-                        this.editing = false;
-                        this.submitted = false;
-
-                        this.changeDetectorRef
-                            .detectChanges();
-
-                        this.messageService.add({
-                            severity: 'success',
-                            summary: 'Perfil actualizado',
-                            detail:
-                                'Tu información personal fue actualizada correctamente.'
-                        });
-                    }, 0);
+                    this.refreshSessionAfterProfileUpdate();
                 },
 
                 error: (
                     error: HttpErrorResponse
                 ) => {
                     window.setTimeout(() => {
-                        this.savingProfile = false;
+                        this.savingProfile =
+                            false;
 
                         this.changeDetectorRef
                             .detectChanges();
@@ -881,16 +897,25 @@ export class Profile implements OnInit {
             });
     }
 
-    isValidEmail(email: string): boolean {
+    isValidEmail(
+        email: string
+    ): boolean {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
             email.trim()
         );
     }
 
-    formatDate(value: string): string {
-        const date = new Date(value);
+    formatDate(
+        value: string
+    ): string {
+        const date =
+            new Date(value);
 
-        if (Number.isNaN(date.getTime())) {
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
             return value;
         }
 
@@ -911,22 +936,103 @@ export class Profile implements OnInit {
 
         this.loggingOut = true;
 
+        this.sessionManager.stop();
+
         this.authService
             .logout()
             .pipe(
-                takeUntilDestroyed(this.destroyRef)
+                takeUntilDestroyed(
+                    this.destroyRef
+                )
             )
             .subscribe({
                 next: () => {
-                    void this.router.navigate([
-                        '/auth/login'
-                    ]);
+                    void this.router.navigate(
+                        ['/auth/login'],
+                        {
+                            replaceUrl: true
+                        }
+                    );
                 },
 
                 error: () => {
-                    void this.router.navigate([
-                        '/auth/login'
-                    ]);
+                    this.tokenStorage
+                        .clearSession();
+
+                    void this.router.navigate(
+                        ['/auth/login'],
+                        {
+                            replaceUrl: true
+                        }
+                    );
+                }
+            });
+    }
+
+    private refreshSessionAfterProfileUpdate(): void {
+        this.authService
+            .refreshToken()
+            .pipe(
+                takeUntilDestroyed(
+                    this.destroyRef
+                ),
+
+                finalize(() => {
+                    window.setTimeout(() => {
+                        this.savingProfile =
+                            false;
+
+                        this.editing = false;
+
+                        this.submitted = false;
+
+                        this.changeDetectorRef
+                            .detectChanges();
+                    }, 0);
+                })
+            )
+            .subscribe({
+                next: () => {
+                    /*
+                     * AuthService.refreshToken()
+                     * guarda los nuevos tokens.
+                     * Reiniciamos el contador usando
+                     * la nueva fecha de expiración.
+                     */
+                    this.sessionManager.start();
+
+                    window.setTimeout(() => {
+                        this.changeDetectorRef
+                            .detectChanges();
+
+                        this.messageService.add({
+                            severity: 'success',
+                            summary:
+                                'Perfil actualizado',
+                            detail:
+                                'Tu información personal fue actualizada y la sesión fue renovada correctamente.'
+                        });
+                    }, 0);
+                },
+
+                error: () => {
+                    /*
+                     * El perfil ya fue actualizado.
+                     * Solamente falló la renovación
+                     * de los tokens.
+                     */
+                    window.setTimeout(() => {
+                        this.changeDetectorRef
+                            .detectChanges();
+
+                        this.messageService.add({
+                            severity: 'warn',
+                            summary:
+                                'Perfil actualizado',
+                            detail:
+                                'Tus cambios fueron guardados, pero no fue posible renovar la sesión. Inicia sesión nuevamente para actualizar la información del acceso.'
+                        });
+                    }, 0);
                 }
             });
     }
@@ -942,15 +1048,20 @@ export class Profile implements OnInit {
         this.userService
             .getMyProfile()
             .pipe(
-                takeUntilDestroyed(this.destroyRef)
+                takeUntilDestroyed(
+                    this.destroyRef
+                )
             )
             .subscribe({
                 next: response => {
-                    this.profile = response;
+                    this.profile =
+                        response;
+
                     this.resetEditableProfile();
 
                     window.setTimeout(() => {
-                        this.loadingProfile = false;
+                        this.loadingProfile =
+                            false;
 
                         this.changeDetectorRef
                             .detectChanges();
@@ -961,11 +1072,15 @@ export class Profile implements OnInit {
                     error: HttpErrorResponse
                 ) => {
                     this.profile = null;
+
                     this.errorMessage =
-                        this.getErrorMessage(error);
+                        this.getErrorMessage(
+                            error
+                        );
 
                     window.setTimeout(() => {
-                        this.loadingProfile = false;
+                        this.loadingProfile =
+                            false;
 
                         this.changeDetectorRef
                             .detectChanges();
@@ -982,13 +1097,16 @@ export class Profile implements OnInit {
         this.loadingSummary = true;
 
         forkJoin({
-            habits: this.habitService
-                .getMyHabits()
-                .pipe(
-                    catchError(() =>
-                        of([] as HabitResponse[])
-                    )
-                ),
+            habits:
+                this.habitService
+                    .getMyHabits()
+                    .pipe(
+                        catchError(() =>
+                            of(
+                                [] as HabitResponse[]
+                            )
+                        )
+                    ),
 
             dashboard:
                 this.statisticsService
@@ -1009,24 +1127,31 @@ export class Profile implements OnInit {
                     )
         })
             .pipe(
-                takeUntilDestroyed(this.destroyRef)
+                takeUntilDestroyed(
+                    this.destroyRef
+                )
             )
             .subscribe({
                 next: response => {
                     this.activeHabits =
                         response.habits.filter(
-                            habit => habit.active
+                            habit =>
+                                habit.active
                         ).length;
 
                     this.currentStreak =
                         response.dashboard
-                            ?.currentStreak ?? 0;
+                            ?.currentStreak ??
+                        0;
 
                     this.recommendationCount =
-                        response.recommendations.length;
+                        response
+                            .recommendations
+                            .length;
 
                     window.setTimeout(() => {
-                        this.loadingSummary = false;
+                        this.loadingSummary =
+                            false;
 
                         this.changeDetectorRef
                             .detectChanges();
@@ -1035,7 +1160,8 @@ export class Profile implements OnInit {
 
                 error: () => {
                     window.setTimeout(() => {
-                        this.loadingSummary = false;
+                        this.loadingSummary =
+                            false;
 
                         this.changeDetectorRef
                             .detectChanges();
@@ -1056,16 +1182,27 @@ export class Profile implements OnInit {
         }
 
         this.editableProfile = {
-            firstName: this.profile.firstName,
-            lastName: this.profile.lastName,
-            email: this.profile.email
+            firstName:
+                this.profile.firstName,
+
+            lastName:
+                this.profile.lastName,
+
+            email:
+                this.profile.email
         };
     }
 
     private isValidForm(): boolean {
         return Boolean(
-            this.editableProfile.firstName.trim() &&
-            this.editableProfile.lastName.trim() &&
+            this.editableProfile
+                .firstName
+                .trim() &&
+
+            this.editableProfile
+                .lastName
+                .trim() &&
+
             this.isValidEmail(
                 this.editableProfile.email
             )
@@ -1108,7 +1245,8 @@ export class Profile implements OnInit {
         const message =
             error.error?.message;
 
-        return typeof message === 'string'
+        return typeof message ===
+            'string'
             ? message
             : 'Ocurrió un error inesperado.';
     }
