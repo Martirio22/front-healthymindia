@@ -7,6 +7,7 @@ export interface HabitResponse {
   category: HabitCategory;
   goal: number;
   unit: string;
+  day: string;
   active: boolean;
   createdAt: string;
 }

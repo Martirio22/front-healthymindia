@@ -5,4 +5,5 @@ export interface HabitRequest {
   category: HabitCategory;
   goal: number;
   unit: string;
+  day: string;
 }

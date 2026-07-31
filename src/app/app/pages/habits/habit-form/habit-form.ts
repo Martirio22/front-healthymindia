@@ -318,6 +318,24 @@ interface CategoryOption {
                                             </small>
                                         }
                                     </div>
+                                    <div>
+                                        <label
+                                            for="day"
+                                            class="block font-medium mb-2"
+                                        >
+                                            Dias
+                                        </label>
+
+                                        <input
+                                            pInputText
+                                            id="day"
+                                            [(ngModel)]="form.day"
+                                            class="w-full"
+                                            placeholder="5"
+                                            maxlength="50"
+                                            [disabled]="saving"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -533,7 +551,8 @@ export class HabitForm implements OnInit {
         name: '',
         category: HabitCategory.Salud,
         goal: 1,
-        unit: ''
+        unit: '',
+        day: ''
     };
 
     constructor() {
@@ -587,6 +606,7 @@ export class HabitForm implements OnInit {
     }
 
     saveHabit(): void {
+        debugger;
         this.submitted = true;
 
         if (!this.isValidForm()) {
@@ -599,7 +619,8 @@ export class HabitForm implements OnInit {
             name: this.form.name.trim(),
             category: this.form.category,
             goal: Number(this.form.goal),
-            unit: this.form.unit.trim()
+            unit: this.form.unit.trim(),
+            day: this.form.day.trim()
         };
 
         const operation$ =
@@ -672,7 +693,8 @@ export class HabitForm implements OnInit {
                         name: habit.name,
                         category: habit.category,
                         goal: habit.goal,
-                        unit: habit.unit
+                        unit: habit.unit,
+                        day: habit.day
                     };
 
                     window.setTimeout(() => {
